@@ -1,0 +1,6 @@
+{
+  "name": "Exact-Step Maze",
+  "description": "Commercial-grade step-counting maze puzzle game with swipe controls, sound, haptics, replays, achievements, daily challenges, and skin shop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
