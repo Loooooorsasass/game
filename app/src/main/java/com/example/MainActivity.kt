@@ -118,6 +118,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.soundManager.resumeBgm()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        viewModel.soundManager.pauseBgm()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         viewModel.soundManager.release()

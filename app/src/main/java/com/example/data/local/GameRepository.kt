@@ -97,4 +97,18 @@ class GameRepository(private val db: AppDatabase) {
             )
         )
     }
+
+    // Room Database Methods cho MazeLevel
+    suspend fun saveMazeLevel(level: MazeLevelEntity) {
+        db.mazeLevelDao().insertLevel(level)
+    }
+
+    suspend fun getMazeLevel(levelId: String): MazeLevelEntity? {
+        return db.mazeLevelDao().getLevelSync(levelId)
+    }
+
+    fun getMazeLevelFlow(levelId: String): Flow<MazeLevelEntity?> {
+        return db.mazeLevelDao().getLevel(levelId)
+    }
 }
+

@@ -137,7 +137,7 @@ fun ReplayScreen(
                     skin = skin,
                     vision = null, // In replay, let player see full maze or vision
                     replayTrail = trailSoFar,
-                    onMove = { _, _ -> },
+                    onMove = { _, _ -> false },
                     modifier = Modifier.testTag("replay_canvas")
                 )
             }

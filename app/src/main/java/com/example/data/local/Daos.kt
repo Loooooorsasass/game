@@ -75,3 +75,28 @@ interface DailyChallengeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(record: DailyChallengeRecordEntity)
 }
+
+/**
+ * Data Access Object quản lý dữ liệu cấu trúc màn chơi mê cung trong Room
+ */
+@Dao
+interface MazeLevelDao {
+    @Query("SELECT * FROM maze_levels WHERE levelId = :levelId LIMIT 1")
+    fun getLevel(levelId: String): Flow<MazeLevelEntity?>
+
+    @Query("SELECT * FROM maze_levels WHERE levelId = :levelId LIMIT 1")
+    suspend fun getLevelSync(levelId: String): MazeLevelEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLevel(level: MazeLevelEntity)
+
+    @Query("SELECT * FROM maze_levels ORDER BY createdAt ASC")
+    fun getAllLevels(): Flow<List<MazeLevelEntity>>
+
+    @Query("DELETE FROM maze_levels WHERE levelId = :levelId")
+    suspend fun deleteLevel(levelId: String)
+
+    @Query("DELETE FROM maze_levels")
+    suspend fun clearAllLevels()
+}
+

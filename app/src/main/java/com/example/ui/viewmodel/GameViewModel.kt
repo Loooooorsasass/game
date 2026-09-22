@@ -9,6 +9,7 @@ import com.example.core.engine.LevelDef
 import com.example.core.engine.Maze
 import com.example.core.engine.MazeBuilder
 import com.example.core.engine.MazeConfig
+import com.example.core.engine.MazeGenerator
 import com.example.core.engine.MazeSolver
 import com.example.core.engine.NORTH
 import com.example.core.engine.Point
@@ -23,6 +24,7 @@ import com.example.data.local.GameRepository
 import com.example.data.local.LevelRecordEntity
 import com.example.data.local.SaveSlotEntity
 import com.example.data.shop.ShopCatalog
+import com.example.ui.components.GridControlMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +65,8 @@ data class ActiveGameState(
     val justUnlockedImpossible: Boolean = false,
     val justUnlockedNextTier: Boolean = false,
     val nextTierDef: LevelDef? = null,
-    val justClearedSuper: Boolean = false
+    val justClearedSuper: Boolean = false,
+    val controlMode: GridControlMode = GridControlMode.AUTO
 )
 
 data class ReplayState(
@@ -149,8 +152,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun startLevel(def: LevelDef) {
         soundManager.playClick()
         val seed = MazeBuilder.randomSeed()
-        val maze = MazeBuilder.buildMaze(def.w, def.h, def.target, seed)
+        val levelData = MazeGenerator.generateFromDef(def, seed.toLong())
+        val maze = levelData.toMaze()
         val distCache = MazeSolver.computeDistances(maze)
+
+        // Lưu cấu trúc logic của level vào Room database
+        viewModelScope.launch {
+            repository.saveMazeLevel(MazeGenerator.toEntity(levelData))
+        }
+
+        val preservedControlMode = _uiState.value.activeGame.controlMode
 
         _uiState.update {
             it.copy(
@@ -171,7 +182,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     secPerCell = 0.0,
                     isPaused = false,
                     showExitDialog = false,
-                    showHint = false
+                    showHint = false,
+                    controlMode = preservedControlMode
                 )
             )
         }
@@ -192,8 +204,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             isFinal = false,
             noTimer = false
         )
-        val maze = MazeBuilder.buildMaze(def.w, def.h, def.target, seed)
+        val levelData = MazeGenerator.generateFromDef(def, seed.toLong())
+        val maze = levelData.toMaze()
         val distCache = MazeSolver.computeDistances(maze)
+
+        // Lưu cấu trúc logic của level vào Room database
+        viewModelScope.launch {
+            repository.saveMazeLevel(MazeGenerator.toEntity(levelData))
+        }
+
+        val preservedControlMode = _uiState.value.activeGame.controlMode
 
         _uiState.update {
             it.copy(
@@ -214,7 +234,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     secPerCell = 0.0,
                     isPaused = false,
                     showExitDialog = false,
-                    showHint = false
+                    showHint = false,
+                    controlMode = preservedControlMode
                 )
             )
         }
@@ -277,10 +298,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         startTimer()
     }
 
-    fun tryMove(dx: Int, dy: Int) {
+    fun tryMove(dx: Int, dy: Int): Boolean {
         val game = _uiState.value.activeGame
-        val maze = game.maze ?: return
-        if (game.gameOver || game.isPaused) return
+        val maze = game.maze ?: return false
+        if (game.gameOver || game.isPaused) return false
 
         val (cx, cy) = game.player
         val dir = when {
@@ -288,7 +309,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             dx == -1 && dy == 0 -> WEST
             dx == 0 && dy == 1 -> NORTH
             dx == 0 && dy == -1 -> SOUTH
-            else -> return
+            else -> return false
         }
 
         val mask = maze.cellAt(cx, cy)
@@ -296,11 +317,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if ((mask and dir) == 0) {
             // Wall bump!
             soundManager.playBump()
-            hapticManager.vibrateBump()
+            hapticManager.performWallHitFeedback()
             _uiState.update {
                 it.copy(activeGame = it.activeGame.copy(wallHits = it.activeGame.wallHits + 1))
             }
-            return
+            return false
         }
 
         // Valid move!
@@ -313,12 +334,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val newHistory = game.pathHistory + newPlayer
 
         soundManager.playStep()
-        hapticManager.vibrateStep()
+        hapticManager.performMoveFeedback()
 
         // Check moveCap if present
         if (game.levelDef?.moveCap != null && newMoves > game.levelDef.moveCap) {
             handleLoss("🚫 Vượt quá ${game.levelDef.moveCap} bước di chuyển!")
-            return
+            return false
         }
 
         // Check BFS distance
@@ -339,12 +360,35 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (nx == maze.goal.x && ny == maze.goal.y && dist == maze.target) {
             handleWin()
         }
+        return true
+    }
+
+    /**
+     * Cài đặt chế độ điều khiển ('AUTO' hoặc 'STEP_BY_STEP')
+     */
+    fun setControlMode(mode: GridControlMode) {
+        _uiState.update {
+            it.copy(activeGame = it.activeGame.copy(controlMode = mode))
+        }
+    }
+
+    /**
+     * Bật/tắt chuyển đổi chế độ điều khiển (dùng cho nút Toggle trên UI)
+     */
+    fun toggleControlMode() {
+        val current = _uiState.value.activeGame.controlMode
+        val next = if (current == GridControlMode.AUTO) {
+            GridControlMode.STEP_BY_STEP
+        } else {
+            GridControlMode.AUTO
+        }
+        setControlMode(next)
     }
 
     private fun handleWin() {
         pauseTimer()
         soundManager.playWin()
-        hapticManager.vibrateWin()
+        hapticManager.performWinFeedback()
 
         val game = _uiState.value.activeGame
         val levelDef = game.levelDef ?: return
@@ -792,10 +836,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val p = _uiState.value.progress
         val newVal = !p.soundEnabled
         soundManager.isSoundEnabled = newVal
+        if (newVal) soundManager.playClick()
         viewModelScope.launch { repository.saveProgress(p.copy(soundEnabled = newVal)) }
     }
 
     fun toggleMusic() {
+        soundManager.playClick()
         val p = _uiState.value.progress
         val newVal = !p.musicEnabled
         soundManager.isMusicEnabled = newVal
@@ -803,9 +849,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleHaptics() {
+        soundManager.playClick()
         val p = _uiState.value.progress
         val newVal = !p.hapticEnabled
         hapticManager.isHapticEnabled = newVal
+        if (newVal) hapticManager.performMoveFeedback()
         viewModelScope.launch { repository.saveProgress(p.copy(hapticEnabled = newVal)) }
     }
 

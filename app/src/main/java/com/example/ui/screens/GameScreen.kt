@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -213,7 +214,63 @@ fun GameScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Thanh chuyển đổi chế độ điều khiển: Tự động (Vuốt / Giữ liên tục) vs Từng bước
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Điều khiển:",
+                    fontSize = 12.sp,
+                    color = theme.wallColor.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Medium
+                )
+
+                Surface(
+                    onClick = { viewModel.toggleControlMode() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (game.controlMode == com.example.ui.components.GridControlMode.AUTO)
+                        theme.accentColor.copy(alpha = 0.18f)
+                    else
+                        theme.wallColor.copy(alpha = 0.12f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (game.controlMode == com.example.ui.components.GridControlMode.AUTO)
+                            theme.accentColor
+                        else
+                            theme.wallColor.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.testTag("toggle_control_mode_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = game.controlMode.displayName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (game.controlMode == com.example.ui.components.GridControlMode.AUTO)
+                                theme.accentColor
+                            else
+                                theme.wallColor
+                        )
+                        Text(
+                            text = "(${game.controlMode.description})",
+                            fontSize = 10.sp,
+                            color = theme.wallColor.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             // MAZE CANVAS BOARD (SWIPE ENABLED)
             Box(
@@ -230,6 +287,7 @@ fun GameScreen(
                     skin = skin,
                     vision = levelDef.vision,
                     hintPath = if (game.showHint) maze.spine else null,
+                    controlMode = game.controlMode,
                     onMove = { dx, dy -> viewModel.tryMove(dx, dy) },
                     modifier = Modifier.testTag("game_maze_canvas")
                 )

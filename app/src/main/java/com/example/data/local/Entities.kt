@@ -71,3 +71,24 @@ data class DailyChallengeRecordEntity(
     val stars: Int,
     val completedAt: Long
 )
+
+/**
+ * Entity lưu cấu trúc logic của màn chơi mê cung (Room Database Schema)
+ * Quản lý vị trí các bức tường, điểm bắt đầu của người chơi và điểm đích đến.
+ */
+@Entity(tableName = "maze_levels")
+data class MazeLevelEntity(
+    @PrimaryKey val levelId: String,
+    val width: Int,
+    val height: Int,
+    val targetSteps: Int,
+    val startX: Int,
+    val startY: Int,
+    val endX: Int,
+    val endY: Int,
+    val wallsData: String,      // Chuỗi mảng bitmask tường của từng ô (CSV: "15,7,11,...")
+    val optimalPath: String,   // Tọa độ đường đi mẫu tối ưu (CSV: "x,y;x,y;...")
+    val seed: Long,
+    val createdAt: Long = System.currentTimeMillis()
+)
+

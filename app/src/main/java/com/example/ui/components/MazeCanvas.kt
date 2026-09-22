@@ -1,31 +1,26 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.PaintingStyle
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.example.core.engine.EAST
 import com.example.core.engine.Maze
@@ -35,7 +30,6 @@ import com.example.core.engine.SOUTH
 import com.example.core.engine.WEST
 import com.example.data.shop.MazeTheme
 import com.example.data.shop.PlayerSkin
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -49,55 +43,53 @@ fun MazeCanvas(
     vision: Int?,
     hintPath: List<Point>? = null,
     replayTrail: List<Point>? = null,
-    onMove: (dx: Int, dy: Int) -> Unit,
+    controlMode: GridControlMode = GridControlMode.AUTO,
+    onMove: (dx: Int, dy: Int) -> Boolean = { _, _ -> true },
     modifier: Modifier = Modifier
 ) {
-    // Smooth animated player position
+    val coroutineScope = rememberCoroutineScope()
+
+    val currentView = LocalView.current
+
+    // Bộ xử lý cử chỉ kết hợp (Vuốt nhanh, Vuốt & Giữ, Tự động dừng khi gặp tường cản)
+    // Tích hợp Android HapticFeedbackConstants qua targetView
+    val gestureHandler = remember(controlMode, onMove, currentView) {
+        GridGestureInputHandler(
+            coroutineScope = coroutineScope,
+            onValidateAndMove = onMove,
+            initialControlMode = controlMode,
+            targetView = currentView
+        )
+    }
+
+    // Hiệu ứng Lerp / Tween: Nhân vật trượt mượt mà từ ô A sang ô B trong khoảng MOVE_SPEED_MS (180ms)
     val animPlayerX by animateFloatAsState(
         targetValue = player.x.toFloat(),
-        animationSpec = tween(durationMillis = 80),
+        animationSpec = tween(
+            durationMillis = MOVE_SPEED_MS.toInt(),
+            easing = FastOutSlowInEasing
+        ),
         label = "animPlayerX"
     )
     val animPlayerY by animateFloatAsState(
         targetValue = player.y.toFloat(),
-        animationSpec = tween(durationMillis = 80),
+        animationSpec = tween(
+            durationMillis = MOVE_SPEED_MS.toInt(),
+            easing = FastOutSlowInEasing
+        ),
         label = "animPlayerY"
     )
-
-    var totalDragX by remember { mutableFloatStateOf(0f) }
-    var totalDragY by remember { mutableFloatStateOf(0f) }
-    val dragThreshold = 36f
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(16.dp))
             .background(theme.panelColor)
-            .pointerInput(maze, player) {
-                detectDragGestures(
-                    onDragStart = {
-                        totalDragX = 0f
-                        totalDragY = 0f
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDragX += dragAmount.x
-                        totalDragY += dragAmount.y
-
-                        if (abs(totalDragX) > dragThreshold || abs(totalDragY) > dragThreshold) {
-                            if (abs(totalDragX) > abs(totalDragY)) {
-                                if (totalDragX > 0) onMove(1, 0) else onMove(-1, 0)
-                            } else {
-                                // In coordinate system: dy = 1 is NORTH (up on screen), dy = -1 is SOUTH (down on screen)
-                                if (totalDragY < 0) onMove(0, 1) else onMove(0, -1)
-                            }
-                            totalDragX = 0f
-                            totalDragY = 0f
-                        }
-                    }
-                )
-            }
+            .gridGestureInput(gestureHandler)
+            .gridKeyboardInput(onMove)
+            .focusable()
     ) {
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height

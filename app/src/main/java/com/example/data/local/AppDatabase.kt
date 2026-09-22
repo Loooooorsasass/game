@@ -11,9 +11,10 @@ import androidx.room.RoomDatabase
         LevelRecordEntity::class,
         SaveSlotEntity::class,
         AchievementEntity::class,
-        DailyChallengeRecordEntity::class
+        DailyChallengeRecordEntity::class,
+        MazeLevelEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun saveSlotDao(): SaveSlotDao
     abstract fun achievementDao(): AchievementDao
     abstract fun dailyChallengeDao(): DailyChallengeDao
+    abstract fun mazeLevelDao(): MazeLevelDao
 
     companion object {
         @Volatile
@@ -33,7 +35,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "exact_maze_db"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
